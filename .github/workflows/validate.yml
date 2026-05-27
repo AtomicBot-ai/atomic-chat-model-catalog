@@ -1,0 +1,141 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate orgs.json + scraper dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ajv-cli
+        run: npm install -g ajv-cli@5
+
+      - name: Validate orgs.json
+        run: |
+          ajv validate \
+            -s config/schema.orgs.json \
+            -d config/orgs.json \
+            --strict=false
+
+      - name: Check orgs.json integrity
+        run: |
+          node <<'EOF'
+          const fs = require('fs')
+          const data = JSON.parse(fs.readFileSync('config/orgs.json', 'utf8'))
+          const errors = []
+
+          if (typeof data.schema_version !== 'number' || data.schema_version < 1) {
+            errors.push('schema_version must be a positive integer')
+          }
+          if (typeof data.updated_at !== 'string' || !/\d{4}-\d{2}-\d{2}T/.test(data.updated_at)) {
+            errors.push('updated_at must be an ISO-8601 timestamp')
+          }
+          if (!Array.isArray(data.orgs) || data.orgs.length === 0) {
+            errors.push('orgs must be a non-empty array')
+          } else {
+            const seen = new Set()
+            for (const o of data.orgs) {
+              if (typeof o.name !== 'string' || !o.name.trim()) {
+                errors.push('every org needs a non-empty name')
+                continue
+              }
+              if (seen.has(o.name)) {
+                errors.push(`duplicate org: ${o.name}`)
+              }
+              seen.add(o.name)
+              if (o.priority_boost !== undefined &&
+                  (typeof o.priority_boost !== 'number' || o.priority_boost < 0 || o.priority_boost > 10)) {
+                errors.push(`org ${o.name}: priority_boost must be 0..10`)
+              }
+            }
+          }
+
+          if (errors.length) {
+            console.error('orgs.json validation failed:')
+            for (const e of errors) console.error('  - ' + e)
+            process.exit(1)
+          }
+          console.log(`orgs.json passed all integrity checks (${data.orgs.length} entries).`)
+          EOF
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.5.x'
+
+      - name: Set up Python via uv
+        run: uv python install 3.13
+
+      - name: Install scraper deps
+        working-directory: scripts
+        run: uv sync --frozen
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install index-builder deps
+        working-directory: scripts
+        run: npm install --no-audit --no-fund
+
+      - name: Scraper smoke test (small org)
+        working-directory: scripts
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          LOG_LEVEL: INFO
+        run: |
+          uv run python scrape.py \
+            --config ../config/orgs.json \
+            --out ../out \
+            --orgs ggml-org
+
+      - name: Validate scraped catalog against schema
+        run: |
+          ajv validate \
+            -s config/schema.catalog.json \
+            -d out/catalog.json \
+            --strict=false
+
+      - name: Index-builder smoke test
+        working-directory: scripts
+        run: node build_index.mjs --in ../out/catalog.json --out ../out/catalog.idx.json
+
+      - name: Sanity-check catalog stats
+        run: |
+          node <<'EOF'
+          const fs = require('fs')
+          const c = JSON.parse(fs.readFileSync('out/catalog.json', 'utf8'))
+          if (!Array.isArray(c.models) || c.models.length === 0) {
+            console.error('Scraper produced an empty catalog')
+            process.exit(1)
+          }
+          for (const m of c.models) {
+            if (!m.model_name || !m.developer) {
+              console.error(`Invalid entry: ${JSON.stringify(m).slice(0, 200)}`)
+              process.exit(1)
+            }
+            const refs = [
+              ...(m.quants || []),
+              ...(m.mmproj_models || []),
+              ...(m.safetensors_files || []),
+            ]
+            for (const r of refs) {
+              if (!/^https:\/\/huggingface\.co\/.+\/resolve\/main\/.+$/.test(r.path)) {
+                console.error(`Bad path: ${r.path} in ${m.model_name}`)
+                process.exit(1)
+              }
+            }
+          }
+          console.log(`Catalog OK: ${c.models.length} models (mlx=${c.stats.mlx_models}, gguf=${c.stats.gguf_models})`)
+          EOF

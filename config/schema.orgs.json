@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Atomic Chat Model Catalog — Org Whitelist",
+  "description": "Schema for config/orgs.json: the list of Hugging Face organizations the scraper enumerates.",
+  "type": "object",
+  "required": ["schema_version", "updated_at", "orgs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Bump when the org entry shape changes in a backwards-incompatible way."
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp; refresh on every meaningful change."
+    },
+    "orgs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/org" }
+    }
+  },
+  "definitions": {
+    "org": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Hugging Face org id (case-sensitive). Used as ?author={name} in the HF API."
+        },
+        "priority_boost": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Static, platform-neutral baseline weight. Client multiplies by a platform-aware ORG_BOOST."
+        },
+        "active": {
+          "type": "boolean",
+          "default": true,
+          "description": "Set to false to keep the entry for documentation purposes but skip it during scrape."
+        },
+        "min_downloads": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Skip repos with fewer downloads than this threshold."
+        },
+        "tags_required": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true,
+          "default": [],
+          "description": "Skip repos that do not carry ALL of these tags."
+        },
+        "library_required": {
+          "type": "string",
+          "description": "Optional exact-match on HF library_name (e.g. \"mlx\")."
+        },
+        "max_repos": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Cap on the number of repos kept after sorting by downloads (top-N)."
+        }
+      }
+    }
+  }
+}

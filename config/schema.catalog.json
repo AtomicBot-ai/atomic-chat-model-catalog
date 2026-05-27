@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Atomic Chat Model Catalog — Scraped Output",
+  "description": "Schema for the catalog.json artefact produced by scripts/scrape.py. Mirrors the CatalogModel TypeScript interface used by the client.",
+  "type": "object",
+  "required": ["manifest_version", "schema_version", "updated_at", "orgs", "models"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "manifest_version": { "type": "integer", "const": 1 },
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "orgs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of orgs included in this snapshot (active subset of orgs.json)."
+    },
+    "stats": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "total_models": { "type": "integer", "minimum": 0 },
+        "by_org": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "mlx_models": { "type": "integer", "minimum": 0 },
+        "gguf_models": { "type": "integer", "minimum": 0 },
+        "elapsed_seconds": { "type": "number", "minimum": 0 }
+      }
+    },
+    "models": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/catalogModel" }
+    }
+  },
+  "definitions": {
+    "catalogModel": {
+      "type": "object",
+      "required": ["model_name", "developer", "downloads"],
+      "additionalProperties": true,
+      "properties": {
+        "model_name": {
+          "type": "string",
+          "description": "Hugging Face repo id, e.g. owner/repo."
+        },
+        "developer": { "type": "string" },
+        "description": { "type": "string" },
+        "downloads": { "type": "integer", "minimum": 0 },
+        "likes": { "type": "integer", "minimum": 0 },
+        "created_at": { "type": "string" },
+        "last_modified": { "type": "string" },
+        "library_name": { "type": "string" },
+        "tools": { "type": "boolean" },
+        "is_mlx": { "type": "boolean" },
+        "tags_normalized": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "num_quants": { "type": "integer", "minimum": 0 },
+        "quants": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/fileRef" }
+        },
+        "num_mmproj": { "type": "integer", "minimum": 0 },
+        "mmproj_models": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/fileRef" }
+        },
+        "num_safetensors": { "type": "integer", "minimum": 0 },
+        "safetensors_files": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/safetensorsRef" }
+        },
+        "readme": { "type": "string", "format": "uri" }
+      }
+    },
+    "fileRef": {
+      "type": "object",
+      "required": ["model_id", "path", "file_size"],
+      "additionalProperties": false,
+      "properties": {
+        "model_id": { "type": "string" },
+        "path": {
+          "type": "string",
+          "pattern": "^https://huggingface\\.co/.+/resolve/main/.+$",
+          "description": "Full HF download URL — required so the existing llamacpp / mlx download pipeline works unchanged."
+        },
+        "file_size": { "type": "string" }
+      }
+    },
+    "safetensorsRef": {
+      "type": "object",
+      "required": ["model_id", "path", "file_size"],
+      "additionalProperties": false,
+      "properties": {
+        "model_id": { "type": "string" },
+        "path": {
+          "type": "string",
+          "pattern": "^https://huggingface\\.co/.+/resolve/main/.+$"
+        },
+        "file_size": { "type": "string" },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Required for MLX integrity verification when present."
+        }
+      }
+    }
+  }
+}

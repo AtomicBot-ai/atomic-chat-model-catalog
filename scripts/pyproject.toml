@@ -1,0 +1,17 @@
+[project]
+name = "atomic-chat-model-catalog-scraper"
+version = "0.1.0"
+description = "Hugging Face scraper for the Atomic Chat curated model catalog."
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28",
+    "tenacity>=9.0",
+    "jsonschema>=4.23",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RET"]

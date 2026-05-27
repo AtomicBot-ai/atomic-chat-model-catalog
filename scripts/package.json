@@ -1,0 +1,12 @@
+{
+  "name": "atomic-chat-model-catalog-build",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:index": "node build_index.mjs --in ../out/catalog.json --out ../out/catalog.idx.json"
+  },
+  "dependencies": {
+    "minisearch": "^7.1.2"
+  }
+}
