@@ -61,12 +61,21 @@ DEFAULT_PER_ORG_CAP = 800
 # mradermacher, QuantFactory) do not turn into a 429-storm. Override via
 # --concurrency on the CLI when a fast token is available.
 DEFAULT_DETAIL_CONCURRENCY = 4
-DEFAULT_LIST_CONCURRENCY = 2
+# Listings run sequentially: at 21 orgs they finish in well under a minute
+# even single-threaded, and parallelising them spikes the bucket needlessly.
+DEFAULT_LIST_CONCURRENCY = 1
 REQUEST_TIMEOUT = httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=60.0)
 # Maximum seconds to honour from an HF `Retry-After` response. HF
 # occasionally returns minute-scale waits during bursts; we cap to keep CI
 # under the 60-minute timeout.
 MAX_RETRY_AFTER_SECONDS = 45.0
+# Steady-state request rate target. HF Hub API quotas (Sept '25):
+#   anonymous = 500 / 5min = 1.67 req/s
+#   Free      = 1000 / 5min = 3.33 req/s
+#   PRO       = 2500 / 5min = 8.33 req/s
+# We aim for ~75% of Free so 5-min fixed-window resets do not push us over
+# the edge. Override via --rate-limit when a stronger token is available.
+DEFAULT_RATE_LIMIT_RPS = 2.5
 
 QUANT_CODE_RE = re.compile(
     r"\b(?:q\d_k(?:_[a-z])?|q\d_\d(?:_[a-z])?|iq\d_[a-z0-9_]+|f16|f32|bf16|fp16|fp32|"
@@ -180,6 +189,47 @@ class RateLimited(httpx.HTTPError):
         self.retry_after = retry_after
 
 
+class AsyncRateLimiter:
+    """Simple async token bucket that paces all HTTP calls to ``rate_rps`` per second.
+
+    HF Hub APIs are throttled per token (or per IP when anonymous) on
+    5-minute fixed windows. A token bucket sized at ~75% of the plan's
+    steady-state rate keeps the scraper well under the quota even when
+    the previous window's allotment has been spent and the new window
+    has not yet reset. Burstiness is intentionally low (``capacity=1``)
+    because HF's per-second limiter is much tighter than the 5-min one.
+    """
+
+    __slots__ = ("rate_rps", "_min_interval", "_next_available", "_lock")
+
+    def __init__(self, rate_rps: float) -> None:
+        if rate_rps <= 0:
+            raise ValueError(f"rate_rps must be > 0, got {rate_rps!r}")
+        self.rate_rps = rate_rps
+        self._min_interval = 1.0 / rate_rps
+        self._next_available = 0.0
+        self._lock = asyncio.Lock()
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            loop = asyncio.get_running_loop()
+            now = loop.time()
+            wait = self._next_available - now
+            if wait > 0:
+                # Release the lock while sleeping so other coroutines can queue.
+                self._next_available = now + wait + self._min_interval
+            else:
+                self._next_available = now + self._min_interval
+                wait = 0.0
+        if wait > 0:
+            await asyncio.sleep(wait)
+
+
+# Module-level singleton populated by ``run()``. ``get_json`` paces every
+# request through this limiter so all parallel tasks share the same budget.
+_rate_limiter: AsyncRateLimiter | None = None
+
+
 async def get_json(
     client: httpx.AsyncClient,
     url: str,
@@ -196,6 +246,8 @@ async def get_json(
     last_response: httpx.Response | None = None
     while attempt < max_attempts:
         attempt += 1
+        if _rate_limiter is not None:
+            await _rate_limiter.acquire()
         try:
             r = await client.get(url, params=params)
         except (httpx.HTTPError, httpx.RequestError):
@@ -511,8 +563,21 @@ async def scrape_org(
     *,
     detail_sem: asyncio.Semaphore,
 ) -> tuple[list[dict[str, Any]], int]:
-    """Returns ``(catalog_entries, skipped_count)``."""
-    listing = await list_models_for_org(client, org)
+    """Returns ``(catalog_entries, skipped_count)``.
+
+    Soft-fails on listing-level :class:`RateLimited` so one bursting org
+    does not lose results for the other 20+. The next cron run will pick
+    the missing org back up. ``run()`` additionally wraps this call in
+    ``asyncio.gather(return_exceptions=True)`` for symmetry on the detail
+    path.
+    """
+    try:
+        listing = await list_models_for_org(client, org)
+    except RateLimited as exc:
+        logger.warning(
+            "%s -- listing rate-limited, skipping this run: %s", org.name, exc
+        )
+        return [], 0
     candidates = first_pass_filter(listing, org)
     logger.info(
         "%s -- %d candidates after first-pass filter (from %d total)",
@@ -564,6 +629,33 @@ async def run(args: argparse.Namespace) -> int:
         out_dir,
     )
 
+    # Surface HF_TOKEN status without ever leaking the secret. CI logs will
+    # show "HF_TOKEN: present (len=37)" or "HF_TOKEN: ABSENT (anonymous)";
+    # the difference between Free (1000/5min) and Anonymous (500/5min) is
+    # significant enough that we want to be 100% sure the secret made it.
+    token = os.environ.get("HF_TOKEN", "").strip()
+    if token:
+        logger.info(
+            "HF_TOKEN: present (len=%d, prefix=%s***) — authenticated quota active",
+            len(token),
+            token[:3] if len(token) >= 3 else "***",
+        )
+    else:
+        logger.warning(
+            "HF_TOKEN: ABSENT — falling back to anonymous quota (500 / 5min per IP)"
+        )
+
+    # Global token bucket. ``--rate-limit`` overrides the default. Apply to
+    # the module-level singleton so ``get_json`` (which runs in many parallel
+    # tasks) shares the same budget without explicit threading.
+    global _rate_limiter
+    _rate_limiter = AsyncRateLimiter(rate_rps=max(0.1, args.rate_limit))
+    logger.info(
+        "rate limit: %.2f req/sec (min interval %.0f ms)",
+        _rate_limiter.rate_rps,
+        _rate_limiter._min_interval * 1000,
+    )
+
     list_sem = asyncio.Semaphore(DEFAULT_LIST_CONCURRENCY)
     detail_sem = asyncio.Semaphore(max(1, args.concurrency))
     stats = ScrapeStats()
@@ -577,7 +669,27 @@ async def run(args: argparse.Namespace) -> int:
                 models, skipped = await scrape_org(client, org, detail_sem=detail_sem)
                 return org, models, skipped
 
-        results = await asyncio.gather(*(_wrap(o) for o in active_orgs))
+        # ``return_exceptions=True`` so a single org's terminal failure
+        # (network blip, unhandled 429 storm, etc.) does not discard the
+        # 20+ successful orgs already aggregated. Failed orgs are logged
+        # and recorded as ``by_org_skipped`` with the full candidate count.
+        raw_results = await asyncio.gather(
+            *(_wrap(o) for o in active_orgs), return_exceptions=True
+        )
+
+    results: list[tuple[OrgConfig, list[dict[str, Any]], int]] = []
+    for org, item in zip(active_orgs, raw_results, strict=True):
+        if isinstance(item, BaseException):
+            logger.error(
+                "%s -- scrape failed terminally: %s: %s",
+                org.name,
+                type(item).__name__,
+                item,
+            )
+            stats.errors.append(f"{org.name}: {type(item).__name__}: {item}")
+            results.append((org, [], 0))
+            continue
+        results.append(item)
 
     for org, models, skipped in results:
         kept = 0
@@ -594,9 +706,7 @@ async def run(args: argparse.Namespace) -> int:
         stats.by_org[org.name] = kept
         stats.by_org_skipped[org.name] = skipped
         if args.limit and len(by_id) >= args.limit:
-            logger.warning(
-                "hit --limit %d, stopping aggregation after %s", args.limit, org.name
-            )
+            logger.warning("hit --limit %d, stopping aggregation after %s", args.limit, org.name)
             break
 
     models_sorted = sorted(
@@ -607,6 +717,19 @@ async def run(args: argparse.Namespace) -> int:
     stats.mlx_models = sum(1 for m in models_sorted if m.get("is_mlx"))
     stats.gguf_models = sum(1 for m in models_sorted if (m.get("num_quants") or 0) > 0)
     stats.elapsed_seconds = round(time.monotonic() - started, 2)
+
+    # Guard against publishing an empty catalog: if every org failed
+    # (e.g. HF outage, secrets misconfiguration) we'd otherwise overwrite
+    # ``dist/catalog.json.gz`` with a 0-model snapshot and break every
+    # client until the next run. Exit 1 so cron.yml stops before commit.
+    if stats.total_models == 0:
+        logger.error(
+            "aggregation produced 0 models across %d active orgs; refusing to publish "
+            "an empty catalog. Errors: %s",
+            len(active_orgs),
+            stats.errors or "(none recorded — check listing/detail logs above)",
+        )
+        return 1
 
     catalog = {
         "$schema": "../config/schema.catalog.json",
@@ -693,6 +816,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "Per-org detail fetch concurrency (default: "
             f"{DEFAULT_DETAIL_CONCURRENCY}). Raise only when HF_TOKEN is set."
+        ),
+    )
+    parser.add_argument(
+        "--rate-limit",
+        type=float,
+        default=float(os.environ.get("HF_RATE_LIMIT_RPS", DEFAULT_RATE_LIMIT_RPS)),
+        help=(
+            "Global HF request budget in req/sec (default: "
+            f"{DEFAULT_RATE_LIMIT_RPS}). Free token sustains ~3.3/sec, PRO "
+            "~8.3/sec — leave headroom against the 5-min fixed-window reset."
         ),
     )
     parser.add_argument(
