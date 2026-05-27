@@ -256,6 +256,13 @@ async def list_models_for_org(
 ) -> list[dict[str, Any]]:
     """Page through ``/api/models?author={org}``. HF returns at most ``PER_PAGE`` items per page.
 
+    HF's default ordering is ``trendingScore`` (recency-weighted). For our use
+    case "top-N by downloads" is the correct ranking — otherwise high-download
+    but low-trending entries (e.g. ``mlx-community/Qwen3.5-4B-MLX-4bit`` with
+    25k downloads) silently drop out of the catalog when ``max_repos*2`` cap
+    is hit on the first few pages. We pass ``sort=downloads&direction=-1`` so
+    pagination walks the popularity-sorted list directly.
+
     HF supports cursor-style pagination via ``Link: <...>; rel="next"`` but the
     field-name has shifted in the past. We fall back to ``cursor`` query-param
     pagination by reading ``Link`` if present, otherwise stopping at the first
@@ -267,6 +274,8 @@ async def list_models_for_org(
         "author": org.name,
         "full": "true",
         "limit": PER_PAGE,
+        "sort": "downloads",
+        "direction": -1,
     }
     pages = 0
     while next_url is not None:
