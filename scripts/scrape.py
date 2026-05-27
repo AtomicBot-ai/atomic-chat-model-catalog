@@ -32,20 +32,17 @@ import asyncio
 import json
 import logging
 import os
+import random
 import re
 import sys
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
-from tenacity import (
-    AsyncRetrying,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 CATALOG_MANIFEST_VERSION = 1
 CATALOG_SCHEMA_VERSION = 1
@@ -59,9 +56,17 @@ HF_RESOLVE = "https://huggingface.co"
 
 PER_PAGE = 1000
 DEFAULT_PER_ORG_CAP = 800
-DEFAULT_DETAIL_CONCURRENCY = 8
-DEFAULT_LIST_CONCURRENCY = 4
+# HF starts throttling around 8-10 concurrent reads from the same IP / token
+# bucket. We default to 4 so prolific shotgun-quant orgs (MaziyarPanahi,
+# mradermacher, QuantFactory) do not turn into a 429-storm. Override via
+# --concurrency on the CLI when a fast token is available.
+DEFAULT_DETAIL_CONCURRENCY = 4
+DEFAULT_LIST_CONCURRENCY = 2
 REQUEST_TIMEOUT = httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=60.0)
+# Maximum seconds to honour from an HF `Retry-After` response. HF
+# occasionally returns minute-scale waits during bursts; we cap to keep CI
+# under the 60-minute timeout.
+MAX_RETRY_AFTER_SECONDS = 45.0
 
 QUANT_CODE_RE = re.compile(
     r"\b(?:q\d_k(?:_[a-z])?|q\d_\d(?:_[a-z])?|iq\d_[a-z0-9_]+|f16|f32|bf16|fp16|fp32|"
@@ -90,7 +95,7 @@ class OrgConfig:
     max_repos: int | None = None
 
     @classmethod
-    def from_raw(cls, raw: dict[str, Any]) -> "OrgConfig":
+    def from_raw(cls, raw: dict[str, Any]) -> OrgConfig:
         return cls(
             name=str(raw["name"]).strip(),
             priority_boost=float(raw.get("priority_boost", 1.0)),
@@ -133,31 +138,117 @@ def http_headers() -> dict[str, str]:
     return headers
 
 
+def _parse_retry_after(response: httpx.Response) -> float | None:
+    """Return seconds to sleep based on HF rate-limit response headers.
+
+    HF responds to 429s with either ``Retry-After: <seconds>`` (RFC 7231),
+    ``Retry-After: <HTTP-date>``, or — sometimes — ``X-RateLimit-Reset``
+    (Unix epoch seconds). We honour whichever is present.
+    """
+    raw = response.headers.get("retry-after")
+    if raw:
+        raw = raw.strip()
+        try:
+            return min(float(raw), MAX_RETRY_AFTER_SECONDS)
+        except ValueError:
+            pass
+        try:
+            target = parsedate_to_datetime(raw)
+            if target.tzinfo is None:
+                target = target.replace(tzinfo=UTC)
+            delta = (target - datetime.now(tz=UTC)).total_seconds()
+            if delta > 0:
+                return min(delta, MAX_RETRY_AFTER_SECONDS)
+        except (TypeError, ValueError):
+            pass
+    reset = response.headers.get("x-ratelimit-reset")
+    if reset:
+        try:
+            delta = float(reset) - datetime.now(tz=UTC).timestamp()
+            if delta > 0:
+                return min(delta, MAX_RETRY_AFTER_SECONDS)
+        except ValueError:
+            pass
+    return None
+
+
+class RateLimited(httpx.HTTPError):
+    """Carries the suggested cooldown from HF's response."""
+
+    def __init__(self, message: str, retry_after: float | None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
 async def get_json(
     client: httpx.AsyncClient,
     url: str,
     *,
     params: dict[str, Any] | None = None,
+    max_attempts: int = 6,
 ) -> tuple[Any, httpx.Response]:
-    """``GET url`` with retries on 5xx / network errors. Returns ``(json, response)``."""
-    retryer = AsyncRetrying(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1.5, min=1.0, max=30.0),
-        retry=retry_if_exception_type(
-            (httpx.HTTPError, httpx.HTTPStatusError, httpx.RequestError)
-        ),
-        reraise=True,
-    )
-    async for attempt in retryer:
-        with attempt:
+    """``GET url`` with retries that honour HF's ``Retry-After`` headers.
+
+    Returns ``(json, response)``. Soft-failure status codes (``401/403/404/410``)
+    return ``(None, response)`` so the caller can decide whether to skip.
+    """
+    attempt = 0
+    last_response: httpx.Response | None = None
+    while attempt < max_attempts:
+        attempt += 1
+        try:
             r = await client.get(url, params=params)
-            if r.status_code >= 500 or r.status_code == 429:
-                r.raise_for_status()
-            if r.status_code in (401, 403, 404, 410):
-                return None, r
-            r.raise_for_status()
-            return r.json(), r
-    raise RuntimeError("unreachable")
+        except (httpx.HTTPError, httpx.RequestError):
+            if attempt >= max_attempts:
+                raise
+            # Exponential backoff for transport-level errors with jitter.
+            await asyncio.sleep(min(2 ** attempt, 30.0) + random.random())
+            continue
+
+        last_response = r
+
+        if r.status_code == 429:
+            cooldown = _parse_retry_after(r) or min(2 ** attempt, 30.0)
+            # Add jitter so the N concurrent retriers don't fire in lockstep.
+            cooldown += random.random() * 1.5
+            logger.warning(
+                "429 from %s, sleeping %.1fs (attempt %d/%d)",
+                url,
+                cooldown,
+                attempt,
+                max_attempts,
+            )
+            await asyncio.sleep(cooldown)
+            continue
+
+        if r.status_code >= 500:
+            cooldown = min(2 ** attempt, 30.0) + random.random()
+            logger.warning(
+                "%d from %s, sleeping %.1fs (attempt %d/%d)",
+                r.status_code,
+                url,
+                cooldown,
+                attempt,
+                max_attempts,
+            )
+            await asyncio.sleep(cooldown)
+            continue
+
+        if r.status_code in (401, 403, 404, 410):
+            return None, r
+
+        r.raise_for_status()
+        return r.json(), r
+
+    # Exhausted retries — treat as soft failure so one bad repo cannot kill the
+    # whole org pass. The caller logs and continues.
+    if last_response is not None:
+        raise RateLimited(
+            f"giving up on {url} after {max_attempts} attempts "
+            f"(last status {last_response.status_code})",
+            retry_after=None,
+        )
+    raise RateLimited(f"giving up on {url} after {max_attempts} attempts", None)
 
 
 async def list_models_for_org(
@@ -465,7 +556,7 @@ async def run(args: argparse.Namespace) -> int:
     )
 
     list_sem = asyncio.Semaphore(DEFAULT_LIST_CONCURRENCY)
-    detail_sem = asyncio.Semaphore(DEFAULT_DETAIL_CONCURRENCY)
+    detail_sem = asyncio.Semaphore(max(1, args.concurrency))
     stats = ScrapeStats()
     by_id: dict[str, dict[str, Any]] = {}
     started = time.monotonic()
@@ -550,8 +641,6 @@ async def run(args: argparse.Namespace) -> int:
 
 
 def _now_iso() -> str:
-    from datetime import UTC, datetime
-
     return datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
@@ -587,6 +676,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=int,
         default=0,
         help="cap total catalog size after dedupe (0 = no cap, default)",
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=DEFAULT_DETAIL_CONCURRENCY,
+        help=(
+            "Per-org detail fetch concurrency (default: "
+            f"{DEFAULT_DETAIL_CONCURRENCY}). Raise only when HF_TOKEN is set."
+        ),
     )
     parser.add_argument(
         "--log-level",
