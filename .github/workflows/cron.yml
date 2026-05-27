@@ -123,6 +123,29 @@ jobs:
           echo "stamp=$STAMP" >> "$GITHUB_OUTPUT"
           echo "tag=catalog-$STAMP" >> "$GITHUB_OUTPUT"
 
+      - name: Sync dist/ on main for raw.githubusercontent.com hosting
+        # The Atomic Chat client fetches the catalog from
+        # `raw.githubusercontent.com/.../main/dist/catalog.json.gz`. We
+        # commit the gzipped artefacts (plus stats.json for diagnostics)
+        # to that path so the client gets a single non-redirected HTTPS
+        # GET — GitHub Releases adds a signed S3 redirect that Tauri's
+        # plugin-http does not handle reliably.
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp out/catalog.json.gz dist/catalog.json.gz
+          cp out/catalog.idx.json.gz dist/catalog.idx.json.gz
+          cp out/stats.json dist/stats.json
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add dist/
+          if git diff --cached --quiet; then
+            echo "No changes in dist/ — skipping commit."
+          else
+            git commit -m "chore(catalog): refresh dist/ (${{ steps.tag.outputs.stamp }})"
+            git push origin HEAD:main
+          fi
+
       - name: Show artefact sizes
         run: |
           ls -lh out/

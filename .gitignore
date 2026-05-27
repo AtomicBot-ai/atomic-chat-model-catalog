@@ -9,10 +9,14 @@ node_modules/
 package-lock.json
 
 out/
-dist/
 *.log
 *.tmp
-*.gz
+
+# `dist/` is the source of truth served via raw.githubusercontent.com
+# and is intentionally committed. Only ignore other accidental .gz / .tgz.
+/*.gz
+/*.tgz
+/scripts/*.gz
 
 .DS_Store
 .idea/
