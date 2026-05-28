@@ -557,6 +557,66 @@ def build_catalog_model(repo: dict[str, Any]) -> dict[str, Any] | None:
     return model
 
 
+def disambiguate_quant_ids(models: list[dict[str, Any]]) -> dict[str, int]:
+    """Resolve ``quant.model_id`` collisions across the aggregated catalog.
+
+    Some HF orgs (notably ``unsloth``) publish multiple repos that share
+    GGUF filenames -- e.g. both ``unsloth/Qwen3.5-4B-GGUF`` and
+    ``unsloth/Qwen3.5-4B-MTP-GGUF`` contain a file called
+    ``Qwen3.5-4B-Q4_K_M.gguf``. ``build_catalog_model`` derives
+    ``quant.model_id`` from ``{author}/{filename_stem}``, so the two
+    quants end up with identical ids. Downstream the client uses
+    ``quant.model_id`` both as the UI tracking key
+    (``DownloadButton.tsx``) and as the local on-disk path, so a
+    collision (1) makes both Hub cards show the same download
+    indicator and (2) risks one file silently overwriting the other.
+
+    This pass walks the catalog once, finds every ``model_id`` shared
+    by >1 quant across the catalog, and re-mints the colliding ids as
+    ``{author}/{repo_basename}-{filename_stem}``. Non-colliding ids
+    are left untouched so the catalog stays diff-friendly. Returns a
+    counter ``{"detected": N, "renamed": M}`` for the stats payload.
+    """
+    occurrence: dict[str, int] = {}
+    for m in models:
+        for q in m.get("quants") or []:
+            qid = q.get("model_id") or ""
+            if not qid:
+                continue
+            occurrence[qid] = occurrence.get(qid, 0) + 1
+    colliding = {qid for qid, n in occurrence.items() if n > 1}
+    if not colliding:
+        return {"detected": 0, "renamed": 0}
+
+    renamed = 0
+    for m in models:
+        repo_full = m.get("model_name") or ""
+        author = m.get("developer") or (
+            repo_full.split("/", 1)[0] if "/" in repo_full else ""
+        )
+        repo_basename = (
+            repo_full.split("/", 1)[1] if "/" in repo_full else repo_full
+        )
+        if not (author and repo_basename):
+            continue
+        for q in m.get("quants") or []:
+            qid = q.get("model_id") or ""
+            if qid not in colliding:
+                continue
+            # Strip the original ``{author}/`` prefix to recover the
+            # filename stem (already sanitised by ``build_catalog_model``).
+            tail = qid.split("/", 1)[1] if "/" in qid else qid
+            new_id = f"{author}/{sanitize_model_id(repo_basename)}-{tail}"
+            if new_id == qid:
+                # Filename already starts with the repo basename -- nothing
+                # to disambiguate. This should be unreachable in practice
+                # but guard against infinite-collision pathologies.
+                continue
+            q["model_id"] = new_id
+            renamed += 1
+    return {"detected": len(colliding), "renamed": renamed}
+
+
 async def scrape_org(
     client: httpx.AsyncClient,
     org: OrgConfig,
@@ -713,6 +773,19 @@ async def run(args: argparse.Namespace) -> int:
         by_id.values(),
         key=lambda m: (-int(m.get("downloads") or 0), m["model_name"].lower()),
     )
+    # Resolve cross-repo ``quant.model_id`` collisions before serialising.
+    # See ``disambiguate_quant_ids`` for the full rationale -- the short
+    # version is that some HF orgs share GGUF filenames across repos
+    # (``unsloth/Qwen3.5-4B-GGUF`` vs ``unsloth/Qwen3.5-4B-MTP-GGUF``)
+    # and we must hand the client globally-unique ids.
+    quant_id_stats = disambiguate_quant_ids(models_sorted)
+    if quant_id_stats["renamed"]:
+        logger.warning(
+            "disambiguated %d colliding quant.model_id values across "
+            "%d distinct keys",
+            quant_id_stats["renamed"],
+            quant_id_stats["detected"],
+        )
     stats.total_models = len(models_sorted)
     stats.mlx_models = sum(1 for m in models_sorted if m.get("is_mlx"))
     stats.gguf_models = sum(1 for m in models_sorted if (m.get("num_quants") or 0) > 0)
@@ -744,6 +817,7 @@ async def run(args: argparse.Namespace) -> int:
             "mlx_models": stats.mlx_models,
             "gguf_models": stats.gguf_models,
             "elapsed_seconds": stats.elapsed_seconds,
+            "quant_id_collisions": quant_id_stats,
         },
         "models": models_sorted,
     }
