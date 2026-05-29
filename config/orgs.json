@@ -1,7 +1,7 @@
 {
   "$schema": "./schema.orgs.json",
   "schema_version": 1,
-  "updated_at": "2026-05-27T13:00:00Z",
+  "updated_at": "2026-05-29T10:49:00Z",
   "orgs": [
     { "name": "bartowski", "priority_boost": 1.3, "min_downloads": 200, "max_repos": 600 },
     { "name": "unsloth", "priority_boost": 1.3, "min_downloads": 200, "max_repos": 600 },
@@ -23,6 +23,7 @@
     { "name": "NousResearch", "min_downloads": 100, "max_repos": 100 },
     { "name": "allenai", "min_downloads": 100, "max_repos": 100 },
     { "name": "cognitivecomputations", "min_downloads": 100, "max_repos": 100 },
+    { "name": "LiquidAI", "min_downloads": 100, "max_repos": 100 },
 
     { "name": "mlx-community", "min_downloads": 50, "max_repos": 600 },
     { "name": "prince-canuma", "min_downloads": 50, "max_repos": 200 },
