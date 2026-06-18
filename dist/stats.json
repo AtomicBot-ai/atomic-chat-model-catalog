@@ -1,5 +1,5 @@
 {
-  "total_models": 2771,
+  "total_models": 2777,
   "by_org": {
     "bartowski": 600,
     "unsloth": 361,
@@ -24,7 +24,7 @@
     "prince-canuma": 1,
     "apple": 11,
     "Goekdeniz-Guelmez": 21,
-    "AtomicChat": 7
+    "AtomicChat": 13
   },
   "by_org_skipped": {
     "bartowski": 0,
@@ -53,8 +53,8 @@
     "AtomicChat": 0
   },
   "mlx_models": 781,
-  "gguf_models": 1971,
-  "elapsed_seconds": 1126.08,
+  "gguf_models": 1977,
+  "elapsed_seconds": 1128.52,
   "quant_id_collisions": {
     "detected": 635,
     "renamed": 1284
