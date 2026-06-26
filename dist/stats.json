@@ -1,5 +1,5 @@
 {
-  "total_models": 2821,
+  "total_models": 2822,
   "by_org": {
     "bartowski": 600,
     "unsloth": 363,
@@ -19,7 +19,7 @@
     "NousResearch": 19,
     "allenai": 11,
     "cognitivecomputations": 0,
-    "LiquidAI": 61,
+    "LiquidAI": 62,
     "mlx-community": 584,
     "prince-canuma": 1,
     "apple": 12,
@@ -53,8 +53,8 @@
     "AtomicChat": 0
   },
   "mlx_models": 785,
-  "gguf_models": 2014,
-  "elapsed_seconds": 1146.16,
+  "gguf_models": 2015,
+  "elapsed_seconds": 1147.07,
   "quant_id_collisions": {
     "detected": 680,
     "renamed": 1396
