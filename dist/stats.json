@@ -1,13 +1,13 @@
 {
-  "total_models": 2822,
+  "total_models": 2825,
   "by_org": {
     "bartowski": 600,
     "unsloth": 365,
     "mradermacher": 400,
     "ubergarm": 25,
     "lmstudio-community": 200,
-    "MaziyarPanahi": 98,
-    "QuantFactory": 119,
+    "MaziyarPanahi": 100,
+    "QuantFactory": 121,
     "ggml-org": 169,
     "Qwen": 74,
     "microsoft": 3,
@@ -23,7 +23,7 @@
     "mlx-community": 585,
     "prince-canuma": 1,
     "apple": 11,
-    "Goekdeniz-Guelmez": 27,
+    "Goekdeniz-Guelmez": 26,
     "AtomicChat": 19
   },
   "by_org_skipped": {
@@ -52,9 +52,9 @@
     "Goekdeniz-Guelmez": 0,
     "AtomicChat": 0
   },
-  "mlx_models": 790,
-  "gguf_models": 2011,
-  "elapsed_seconds": 1146.06,
+  "mlx_models": 789,
+  "gguf_models": 2014,
+  "elapsed_seconds": 1147.34,
   "quant_id_collisions": {
     "detected": 680,
     "renamed": 1396
