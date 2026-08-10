@@ -54,7 +54,7 @@
   },
   "mlx_models": 844,
   "gguf_models": 2178,
-  "elapsed_seconds": 1236.48,
+  "elapsed_seconds": 1236.3,
   "quant_id_collisions": {
     "detected": 661,
     "renamed": 1340
