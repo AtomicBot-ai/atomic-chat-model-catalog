@@ -1,13 +1,13 @@
 {
-  "total_models": 3173,
+  "total_models": 3176,
   "by_org": {
     "bartowski": 600,
     "unsloth": 386,
     "mradermacher": 400,
-    "ubergarm": 12,
+    "ubergarm": 14,
     "lmstudio-community": 200,
     "MaziyarPanahi": 200,
-    "QuantFactory": 197,
+    "QuantFactory": 200,
     "ggml-org": 184,
     "Qwen": 89,
     "microsoft": 6,
@@ -20,10 +20,10 @@
     "allenai": 12,
     "cognitivecomputations": 0,
     "LiquidAI": 99,
-    "mlx-community": 582,
+    "mlx-community": 581,
     "prince-canuma": 1,
-    "apple": 14,
-    "Goekdeniz-Guelmez": 50,
+    "apple": 12,
+    "Goekdeniz-Guelmez": 51,
     "AtomicChat": 77
   },
   "by_org_skipped": {
@@ -46,15 +46,15 @@
     "allenai": 0,
     "cognitivecomputations": 0,
     "LiquidAI": 0,
-    "mlx-community": 18,
+    "mlx-community": 19,
     "prince-canuma": 0,
     "apple": 0,
     "Goekdeniz-Guelmez": 0,
     "AtomicChat": 2
   },
-  "mlx_models": 864,
-  "gguf_models": 2282,
-  "elapsed_seconds": 1288.46,
+  "mlx_models": 859,
+  "gguf_models": 2288,
+  "elapsed_seconds": 1289.94,
   "quant_id_collisions": {
     "detected": 676,
     "renamed": 1371
