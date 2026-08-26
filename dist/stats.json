@@ -53,8 +53,8 @@
     "AtomicChat": 2
   },
   "mlx_models": 860,
-  "gguf_models": 2293,
-  "elapsed_seconds": 1293.7,
+  "gguf_models": 2294,
+  "elapsed_seconds": 1293.65,
   "quant_id_collisions": {
     "detected": 687,
     "renamed": 1393
