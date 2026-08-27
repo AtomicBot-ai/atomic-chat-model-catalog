@@ -1,10 +1,10 @@
 {
-  "total_models": 3186,
+  "total_models": 3187,
   "by_org": {
     "bartowski": 600,
-    "unsloth": 384,
+    "unsloth": 385,
     "mradermacher": 400,
-    "ubergarm": 16,
+    "ubergarm": 17,
     "lmstudio-community": 200,
     "MaziyarPanahi": 200,
     "QuantFactory": 200,
@@ -22,7 +22,7 @@
     "LiquidAI": 99,
     "mlx-community": 581,
     "prince-canuma": 1,
-    "apple": 13,
+    "apple": 12,
     "Goekdeniz-Guelmez": 54,
     "AtomicChat": 80
   },
@@ -52,9 +52,9 @@
     "Goekdeniz-Guelmez": 0,
     "AtomicChat": 3
   },
-  "mlx_models": 860,
-  "gguf_models": 2295,
-  "elapsed_seconds": 1294.39,
+  "mlx_models": 858,
+  "gguf_models": 2297,
+  "elapsed_seconds": 1295.04,
   "quant_id_collisions": {
     "detected": 687,
     "renamed": 1393
