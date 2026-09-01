@@ -1,10 +1,10 @@
 {
-  "total_models": 3191,
+  "total_models": 3193,
   "by_org": {
     "bartowski": 600,
-    "unsloth": 388,
+    "unsloth": 389,
     "mradermacher": 400,
-    "ubergarm": 18,
+    "ubergarm": 19,
     "lmstudio-community": 200,
     "MaziyarPanahi": 200,
     "QuantFactory": 200,
@@ -52,9 +52,9 @@
     "Goekdeniz-Guelmez": 0,
     "AtomicChat": 4
   },
-  "mlx_models": 858,
-  "gguf_models": 2302,
-  "elapsed_seconds": 1296.91,
+  "mlx_models": 857,
+  "gguf_models": 2304,
+  "elapsed_seconds": 1297.85,
   "quant_id_collisions": {
     "detected": 687,
     "renamed": 1393
