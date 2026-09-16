@@ -1,5 +1,5 @@
 {
-  "total_models": 3212,
+  "total_models": 3213,
   "by_org": {
     "bartowski": 600,
     "unsloth": 391,
@@ -13,7 +13,7 @@
     "microsoft": 6,
     "meta-llama": 0,
     "mistralai": 11,
-    "google": 21,
+    "google": 22,
     "deepseek-ai": 0,
     "nvidia": 8,
     "NousResearch": 22,
@@ -52,9 +52,9 @@
     "Goekdeniz-Guelmez": 0,
     "AtomicChat": 4
   },
-  "mlx_models": 859,
+  "mlx_models": 860,
   "gguf_models": 2320,
-  "elapsed_seconds": 1306.11,
+  "elapsed_seconds": 1306.06,
   "quant_id_collisions": {
     "detected": 701,
     "renamed": 1421
