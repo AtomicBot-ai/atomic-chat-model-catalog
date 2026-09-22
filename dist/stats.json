@@ -1,5 +1,5 @@
 {
-  "total_models": 3220,
+  "total_models": 3221,
   "by_org": {
     "bartowski": 600,
     "unsloth": 391,
@@ -8,7 +8,7 @@
     "lmstudio-community": 200,
     "MaziyarPanahi": 200,
     "QuantFactory": 200,
-    "ggml-org": 190,
+    "ggml-org": 191,
     "Qwen": 88,
     "microsoft": 6,
     "meta-llama": 0,
@@ -53,8 +53,8 @@
     "AtomicChat": 4
   },
   "mlx_models": 860,
-  "gguf_models": 2328,
-  "elapsed_seconds": 1308.99,
+  "gguf_models": 2329,
+  "elapsed_seconds": 1309.19,
   "quant_id_collisions": {
     "detected": 701,
     "renamed": 1421
