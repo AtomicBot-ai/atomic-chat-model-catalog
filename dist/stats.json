@@ -52,11 +52,11 @@
     "Goekdeniz-Guelmez": 0,
     "AtomicChat": 4
   },
-  "mlx_models": 848,
-  "gguf_models": 2363,
-  "elapsed_seconds": 1319.97,
+  "mlx_models": 851,
+  "gguf_models": 2361,
+  "elapsed_seconds": 1320.12,
   "quant_id_collisions": {
-    "detected": 701,
-    "renamed": 1421
+    "detected": 687,
+    "renamed": 1393
   }
 }
