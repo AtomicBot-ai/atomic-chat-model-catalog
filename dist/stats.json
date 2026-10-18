@@ -1,5 +1,5 @@
 {
-  "total_models": 3278,
+  "total_models": 3277,
   "by_org": {
     "bartowski": 600,
     "unsloth": 402,
@@ -22,7 +22,7 @@
     "LiquidAI": 100,
     "mlx-community": 581,
     "prince-canuma": 1,
-    "apple": 12,
+    "apple": 11,
     "Goekdeniz-Guelmez": 47,
     "AtomicChat": 105
   },
@@ -52,9 +52,9 @@
     "Goekdeniz-Guelmez": 0,
     "AtomicChat": 4
   },
-  "mlx_models": 847,
-  "gguf_models": 2394,
-  "elapsed_seconds": 1331.71,
+  "mlx_models": 844,
+  "gguf_models": 2396,
+  "elapsed_seconds": 1331.26,
   "quant_id_collisions": {
     "detected": 650,
     "renamed": 1322
