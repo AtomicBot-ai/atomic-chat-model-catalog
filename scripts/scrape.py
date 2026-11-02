@@ -474,12 +474,16 @@ def build_catalog_model(repo: dict[str, Any]) -> dict[str, Any] | None:
     model_id: str = repo.get("modelId") or repo.get("id") or ""
     if "/" not in model_id:
         return None
+    revision = repo.get("sha")
+    if not isinstance(revision, str) or not re.fullmatch(r"[a-f0-9]{40}", revision):
+        logger.warning("detail %s has no immutable commit; skipping", model_id)
+        return None
     author = repo.get("author") or model_id.split("/", 1)[0]
 
     siblings = repo.get("siblings") or []
 
     def _resolve(filename: str) -> str:
-        return f"{HF_RESOLVE}/{model_id}/resolve/main/{filename}"
+        return f"{HF_RESOLVE}/{model_id}/resolve/{revision}/{filename}"
 
     gguf_files = [s for s in siblings if s.get("rfilename", "").lower().endswith(GGUF_SUFFIX)]
     regular = [s for s in gguf_files if "mmproj" not in s["rfilename"].lower()]
@@ -534,6 +538,7 @@ def build_catalog_model(repo: dict[str, Any]) -> dict[str, Any] | None:
 
     model: dict[str, Any] = {
         "model_name": model_id,
+        "revision": revision,
         "developer": author,
         "downloads": int(repo.get("downloads") or 0),
         "likes": int(repo.get("likes") or 0),
@@ -546,7 +551,7 @@ def build_catalog_model(repo: dict[str, Any]) -> dict[str, Any] | None:
         "safetensors_files": safetensors_files,
         "is_mlx": bool(is_mlx),
         "tags_normalized": normalize_tags(repo, siblings),
-        "readme": f"{HF_RESOLVE}/{model_id}/resolve/main/README.md",
+        "readme": _resolve("README.md"),
     }
     if repo.get("library_name"):
         model["library_name"] = repo["library_name"]
