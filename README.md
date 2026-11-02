@@ -120,8 +120,11 @@ The scraper output `catalog.json` MUST be a **strict superset** of the
 TypeScript interface used by the client. The client reads:
 
 - `model_name`, `developer`, `downloads`, `created_at`, `description`
+- `revision` — the full commit from the same HF response as the file metadata.
+  Every file URL in the entry uses this commit. Entries with an absent or
+  malformed commit are rejected; the scraper never substitutes `main`.
 - `quants[]` with `{ model_id, path, file_size }` — `path` is a full
-  `https://huggingface.co/{repo}/resolve/main/{file}` URL so the
+  `https://huggingface.co/{repo}/resolve/{revision}/{file}` URL so the
   existing download pipeline works unchanged.
 - `mmproj_models[]` with the same shape — needed by the vision UI.
 - `safetensors_files[]` with `{ model_id, path, file_size, sha256? }` —
@@ -136,7 +139,16 @@ The scraper adds **derived** fields:
 - `last_modified: string` — passed through from HF.
 - `likes: number` — passed through from HF.
 
-Client code ignores unknown fields, so additions are backwards-compatible.
+Client code ignores unknown fields, so the added `revision` remains compatible
+with existing readers; `manifest_version` and `schema_version` stay at 1 and
+model/quant identifiers are unchanged. The schema accepts existing snapshots
+with `resolve/main` URLs until the next successful refresh. New snapshots pin
+all model, projector and safetensors URLs to their recorded commit.
+
+This generated discovery catalog and its MiniSearch index remain the Hub search
+source. `atomic-chat-conf/models/catalog.json` owns managed recommendations and
+their selected versions. Updating a discovery snapshot must not replace a saved
+download plan or automatically update an installed model.
 
 ---
 

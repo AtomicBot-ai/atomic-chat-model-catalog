@@ -44,6 +44,11 @@
           "type": "string",
           "description": "Hugging Face repo id, e.g. owner/repo."
         },
+        "revision": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$",
+          "description": "Full commit shared by file metadata and URLs; absent only in legacy snapshots."
+        },
         "developer": { "type": "string" },
         "description": { "type": "string" },
         "downloads": { "type": "integer", "minimum": 0 },
@@ -83,7 +88,7 @@
         "model_id": { "type": "string" },
         "path": {
           "type": "string",
-          "pattern": "^https://huggingface\\.co/.+/resolve/main/.+$",
+          "pattern": "^https://huggingface\\.co/.+/resolve/(main|[a-f0-9]{40})/.+$",
           "description": "Full HF download URL — required so the existing llamacpp / mlx download pipeline works unchanged."
         },
         "file_size": { "type": "string" }
@@ -97,7 +102,7 @@
         "model_id": { "type": "string" },
         "path": {
           "type": "string",
-          "pattern": "^https://huggingface\\.co/.+/resolve/main/.+$"
+          "pattern": "^https://huggingface\\.co/.+/resolve/(main|[a-f0-9]{40})/.+$"
         },
         "file_size": { "type": "string" },
         "sha256": {

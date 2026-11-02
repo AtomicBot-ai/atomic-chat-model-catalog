@@ -87,6 +87,10 @@ jobs:
         working-directory: scripts
         run: uv sync --frozen
 
+      - name: Test immutable catalog snapshots (offline)
+        working-directory: scripts
+        run: uv run python -m unittest discover -p 'test_*.py' -v
+
       - name: Set up Node 20
         uses: actions/setup-node@v4
         with:
@@ -163,7 +167,7 @@ jobs:
               ...(m.safetensors_files || []),
             ]
             for (const r of refs) {
-              if (!/^https:\/\/huggingface\.co\/.+\/resolve\/main\/.+$/.test(r.path)) {
+              if (!/^[a-f0-9]{40}$/.test(m.revision) || !r.path.startsWith(`https://huggingface.co/${m.model_name}/resolve/${m.revision}/`)) {
                 console.error(`Bad path: ${r.path} in ${m.model_name}`)
                 process.exit(1)
               }
