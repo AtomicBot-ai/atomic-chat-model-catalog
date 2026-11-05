@@ -1,5 +1,5 @@
 {
-  "total_models": 3332,
+  "total_models": 3312,
   "by_org": {
     "bartowski": 600,
     "unsloth": 411,
@@ -24,7 +24,7 @@
     "prince-canuma": 1,
     "apple": 14,
     "Goekdeniz-Guelmez": 47,
-    "AtomicChat": 139
+    "AtomicChat": 119
   },
   "by_org_skipped": {
     "bartowski": 0,
@@ -52,11 +52,11 @@
     "Goekdeniz-Guelmez": 0,
     "AtomicChat": 4
   },
-  "mlx_models": 840,
-  "gguf_models": 2457,
-  "elapsed_seconds": 1353.2,
+  "mlx_models": 828,
+  "gguf_models": 2449,
+  "elapsed_seconds": 1345.3,
   "quant_id_collisions": {
-    "detected": 653,
-    "renamed": 1330
+    "detected": 651,
+    "renamed": 1326
   }
 }
