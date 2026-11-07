@@ -1,5 +1,5 @@
 {
-  "total_models": 3314,
+  "total_models": 3315,
   "by_org": {
     "bartowski": 600,
     "unsloth": 411,
@@ -16,7 +16,7 @@
     "google": 23,
     "deepseek-ai": 0,
     "nvidia": 14,
-    "NousResearch": 23,
+    "NousResearch": 24,
     "allenai": 12,
     "cognitivecomputations": 0,
     "LiquidAI": 100,
@@ -53,8 +53,8 @@
     "AtomicChat": 4
   },
   "mlx_models": 829,
-  "gguf_models": 2450,
-  "elapsed_seconds": 1345.97,
+  "gguf_models": 2451,
+  "elapsed_seconds": 1346.66,
   "quant_id_collisions": {
     "detected": 651,
     "renamed": 1326
