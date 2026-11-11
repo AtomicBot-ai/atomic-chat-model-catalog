@@ -23,8 +23,8 @@
     "mlx-community": 581,
     "prince-canuma": 1,
     "apple": 15,
-    "Goekdeniz-Guelmez": 48,
-    "AtomicChat": 121
+    "Goekdeniz-Guelmez": 47,
+    "AtomicChat": 122
   },
   "by_org_skipped": {
     "bartowski": 0,
@@ -54,7 +54,7 @@
   },
   "mlx_models": 826,
   "gguf_models": 2453,
-  "elapsed_seconds": 1347.62,
+  "elapsed_seconds": 1347.95,
   "quant_id_collisions": {
     "detected": 650,
     "renamed": 1324
